@@ -41,21 +41,36 @@ export function Login({ onBack, onSuccess }: LoginProps) {
     }
 
     setLoading(true);
+    console.log('Starting authentication...', { isSignUp, email });
     try {
       if (isSignUp) {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              full_name: email.split('@')[0],
+            }
+          }
         });
-        if (signUpError) throw signUpError;
+        
+        if (signUpError) {
+          console.error('SignUp Error:', signUpError);
+          throw signUpError;
+        }
+        
+        console.log('SignUp Success:', data);
         
         if (data.session) {
           toast.success('Welcome to CREDENTIA!');
           onSuccess();
-        } else {
+        } else if (data.user) {
           toast.info('Verification Required', {
-            description: 'Please check your email to confirm your account.'
+            description: 'Please check your email to confirm your account before logging in.'
           });
+          // Even if session is null, we can close the modal to show the landing page
+          // so the user knows the action was successful.
+          setTimeout(() => onSuccess(), 3000);
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({

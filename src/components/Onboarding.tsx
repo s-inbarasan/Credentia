@@ -6,13 +6,13 @@ import { toast } from 'sonner';
 import { UserDocument } from '../types';
 
 interface OnboardingProps {
-  user: { uid: string; email: string };
+  user: { uid: string; email: string | null; displayName: string | null; photoURL: string | null };
   onComplete: (profile: UserDocument) => void;
 }
 
 export function Onboarding({ user, onComplete }: OnboardingProps) {
-  const [username, setUsername] = useState('');
-  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [username, setUsername] = useState(user.displayName || '');
+  const [profileImage, setProfileImage] = useState<string | null>(user.photoURL || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Bot, User, RefreshCw, Trash2, Edit2, MessageSquare, Plus } from 'lucide-react';
+import { X, Send, Bot, User, RefreshCw, Trash2, Edit2, MessageSquare, Plus, MoreVertical, Check, Copy } from 'lucide-react';
+import { Logo } from './Logo';
+import { Toaster, toast } from 'sonner';
 import { Message, ChatSession } from '../types';
 import { getCyberResponse } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
@@ -20,9 +22,19 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = chatSessions.find(s => s.id === activeSessionId) || chatSessions[0];
+
+  // Filter out empty chats for the history list
+  const filteredSessions = chatSessions.filter(s => s.messages.some(m => m.role === 'user'));
 
   useEffect(() => {
     if (isOpen && chatSessions.length === 0) {
@@ -36,9 +48,23 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeSession?.messages?.length, isTyping]);
 
+  useEffect(() => {
+    if (editingSessionId && editInputRef.current) {
+      editInputRef.current.focus();
+    }
+  }, [editingSessionId]);
+
   const handleNewChat = () => {
+    // Check if there's already an empty chat in the list
+    const emptyChat = chatSessions.find(s => !s.messages.some(m => m.role === 'user'));
+    if (emptyChat) {
+      setActiveSessionId(emptyChat.id);
+      setShowHistory(false);
+      return;
+    }
+
     const newSession: ChatSession = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       title: 'New Conversation',
       messages: [{
         id: '1',
@@ -53,59 +79,106 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
     setShowHistory(false);
   };
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || !activeSession) return;
+  const handleSendMessage = async (regenerateText?: string) => {
+    const messageText = regenerateText || input.trim();
+    if (!messageText || !activeSession) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      text: input.trim(),
+      text: messageText,
       timestamp: new Date().toISOString()
     };
 
-    const currentMessages = activeSession.messages || [];
-    const updatedMessages = [...currentMessages, userMsg];
+    let updatedMessages = activeSession.messages || [];
+    if (!regenerateText) {
+      updatedMessages = [...updatedMessages, userMsg];
+    } else {
+      // If regenerating, remove the last AI message if it exists
+      if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].role === 'ai') {
+        updatedMessages = updatedMessages.slice(0, -1);
+      }
+    }
+
     let newTitle = activeSession.title;
-    if (currentMessages.length === 1) {
-      newTitle = input.trim().slice(0, 30) + '...';
+    // Auto-generate title from first message
+    if (updatedMessages.length === 1 && !regenerateText) {
+      const firstMsg = messageText;
+      newTitle = firstMsg.length > 40 ? firstMsg.slice(0, 37) + '...' : firstMsg;
     }
 
     const updatedSession = { ...activeSession, messages: updatedMessages, title: newTitle, updatedAt: new Date().toISOString() };
     onSessionUpdate(updatedSession);
     
-    setInput('');
+    if (!regenerateText) setInput('');
     setIsTyping(true);
 
-    const history = updatedMessages.map(m => ({
-      role: m.role === 'ai' ? 'model' as const : 'user' as const,
-      parts: [{ text: m.text }]
-    }));
+    try {
+      const history = updatedMessages.map(m => ({
+        role: m.role === 'ai' ? 'model' as const : 'user' as const,
+        parts: [{ text: m.text }]
+      }));
 
-    const responseText = await getCyberResponse(input, history.slice(0, -1));
+      const responseText = await getCyberResponse(messageText, history.slice(0, -1));
 
-    const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'ai',
-      text: responseText,
-      timestamp: new Date().toISOString()
-    };
+      const aiMsgId = (Date.now() + 1).toString();
+      const aiMsg: Message = {
+        id: aiMsgId,
+        role: 'ai',
+        text: responseText,
+        timestamp: new Date().toISOString()
+      };
 
-    const finalSession = { ...updatedSession, messages: [...updatedMessages, aiMsg], updatedAt: new Date().toISOString() };
-    onSessionUpdate(finalSession);
-    setIsTyping(false);
-    
-    if (onMessageSent) {
-      onMessageSent(input);
+      // Simulate streaming effect
+      setStreamingMessageId(aiMsgId);
+      setIsTyping(false);
+      
+      let currentText = '';
+      const words = responseText.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        currentText += (i === 0 ? '' : ' ') + words[i];
+        setStreamingText(currentText);
+        await new Promise(resolve => setTimeout(resolve, 30)); // Adjust speed as needed
+      }
+
+      const finalSession = { ...updatedSession, messages: [...updatedMessages, aiMsg], updatedAt: new Date().toISOString() };
+      onSessionUpdate(finalSession);
+      setStreamingMessageId(null);
+      setStreamingText('');
+      
+      if (onMessageSent && !regenerateText) {
+        onMessageSent(messageText);
+      }
+    } catch (error) {
+      console.error('Error in chat:', error);
+      setIsTyping(false);
+      toast.error('Failed to get response from AI Mentor');
     }
   };
 
-  const handleDeleteChat = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onSessionDelete(id);
-    if (activeSessionId === id) {
-      const remaining = chatSessions.filter(s => s.id !== id);
-      setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
+  const handleRename = (id: string, newTitle: string) => {
+    const session = chatSessions.find(s => s.id === id);
+    if (session) {
+      onSessionUpdate({ ...session, title: newTitle, updatedAt: new Date().toISOString() });
     }
+    setEditingSessionId(null);
+  };
+
+  const confirmDelete = () => {
+    if (deletingSessionId) {
+      onSessionDelete(deletingSessionId);
+      if (activeSessionId === deletingSessionId) {
+        const remaining = chatSessions.filter(s => s.id !== deletingSessionId);
+        setActiveSessionId(remaining.length > 0 ? remaining[0].id : null);
+      }
+      setDeletingSessionId(null);
+      toast.success('Chat deleted');
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Copied to clipboard');
   };
 
   return (
@@ -130,7 +203,7 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-cyber-card/50 backdrop-blur-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-cyber-blue/20 flex items-center justify-center border border-cyber-blue/50">
-                  <Bot className="w-5 h-5 text-cyber-blue" />
+                  <Logo size="sm" glow variant="ai" />
                 </div>
                 <div>
                   <h2 className="font-bold text-white">AI Mentor</h2>
@@ -177,28 +250,104 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
                       </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                      {chatSessions.map(session => (
-                        <div 
-                          key={session.id}
-                          onClick={() => {
-                            setActiveSessionId(session.id);
-                            setShowHistory(false);
-                          }}
-                          className={`p-3 rounded-xl cursor-pointer flex items-center justify-between group transition-colors ${activeSessionId === session.id ? 'bg-cyber-blue/10 border border-cyber-blue/30' : 'hover:bg-white/5 border border-transparent'}`}
-                        >
-                          <div className="truncate pr-4 flex-1">
-                            <p className="text-sm font-medium truncate">{session.title}</p>
-                            <p className="text-xs text-white/40">{new Date(session.updatedAt).toLocaleDateString()}</p>
-                          </div>
-                          <button 
-                            onClick={(e) => handleDeleteChat(session.id, e)}
-                            className="p-1.5 text-white/30 hover:text-cyber-red hover:bg-cyber-red/10 rounded-md opacity-0 group-hover:opacity-100 transition-all"
+                      <AnimatePresence initial={false}>
+                        {filteredSessions.map(session => (
+                          <motion.div 
+                            key={session.id}
+                            layout
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={() => {
+                              if (editingSessionId === session.id) return;
+                              setActiveSessionId(session.id);
+                              setShowHistory(false);
+                            }}
+                            className={`p-3 rounded-xl cursor-pointer flex items-center justify-between group relative transition-all duration-200 ${activeSessionId === session.id ? 'bg-cyber-blue/10 border border-cyber-blue/30' : 'hover:bg-white/5 border border-transparent'}`}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
-                      {chatSessions.length === 0 && (
+                            <div className="flex-1 min-w-0">
+                              {editingSessionId === session.id ? (
+                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                  <input
+                                    ref={editInputRef}
+                                    type="text"
+                                    value={editingTitle}
+                                    onChange={e => setEditingTitle(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') handleRename(session.id, editingTitle);
+                                      if (e.key === 'Escape') setEditingSessionId(null);
+                                    }}
+                                    className="bg-black/40 border border-cyber-blue/50 rounded px-2 py-1 text-sm w-full focus:outline-none"
+                                  />
+                                  <button onClick={() => handleRename(session.id, editingTitle)} className="text-cyber-green hover:scale-110 transition-transform shrink-0">
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => setEditingSessionId(null)} className="text-cyber-red hover:scale-110 transition-transform shrink-0">
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="truncate">
+                                  <p className="text-sm font-medium truncate">{session.title}</p>
+                                  <p className="text-xs text-white/40">{new Date(session.updatedAt).toLocaleDateString()}</p>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className={`shrink-0 flex items-center gap-1 transition-opacity z-10 ${activeSessionId === session.id ? 'opacity-100' : 'opacity-100 group-hover:opacity-100'}`}>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuId(activeMenuId === session.id ? null : session.id);
+                                }}
+                                className="p-2 text-white hover:bg-white/10 rounded-lg transition-all"
+                              >
+                                <MoreVertical className="w-5 h-5" />
+                              </button>
+                            </div>
+
+                            {/* Dropdown Menu */}
+                            <AnimatePresence>
+                              {activeMenuId === session.id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setActiveMenuId(null)} />
+                                  <motion.div
+                                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                    className="absolute right-2 top-full mt-1 w-32 bg-cyber-card border border-white/10 rounded-lg shadow-xl z-40 overflow-hidden"
+                                    onClick={e => e.stopPropagation()}
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        setEditingSessionId(session.id);
+                                        setEditingTitle(session.title);
+                                        setActiveMenuId(null);
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm hover:bg-white/5 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                      Rename
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setDeletingSessionId(session.id);
+                                        setActiveMenuId(null);
+                                      }}
+                                      className="w-full px-4 py-2 text-left text-sm text-cyber-red hover:bg-cyber-red/10 flex items-center gap-2 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      Delete
+                                    </button>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                      {filteredSessions.length === 0 && (
                         <div className="text-center p-8 text-white/40 text-sm">
                           No saved chats
                         </div>
@@ -210,38 +359,124 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {(activeSession?.messages || []).map((msg) => (
-                  <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-cyber-purple/20 border border-cyber-purple/50' : 'bg-cyber-blue/20 border border-cyber-blue/50'}`}>
-                      {msg.role === 'user' ? <User className="w-4 h-4 text-cyber-purple" /> : <Bot className="w-4 h-4 text-cyber-blue" />}
-                    </div>
-                    <div className={`max-w-[80%] rounded-2xl p-4 ${msg.role === 'user' ? 'bg-cyber-purple/20 border border-cyber-purple/30 rounded-tr-none' : 'bg-cyber-card border border-white/10 rounded-tl-none'}`}>
-                      {msg.role === 'ai' ? (
-                        <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
-                          <ReactMarkdown>{msg.text}</ReactMarkdown>
+                {(activeSession?.messages || []).map((msg, idx) => {
+                  const isLast = idx === (activeSession?.messages?.length || 0) - 1;
+                  const isStreaming = streamingMessageId === msg.id;
+                  const displayText = isStreaming ? streamingText : msg.text;
+
+                  return (
+                    <motion.div 
+                      key={msg.id} 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={`flex gap-3 group ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-cyber-purple/20 border border-cyber-purple/50' : 'bg-cyber-blue/20 border border-cyber-blue/50'}`}>
+                        {msg.role === 'user' ? <User className="w-4 h-4 text-cyber-purple" /> : <Logo size="sm" variant="ai" />}
+                      </div>
+                      <div className="max-w-[85%] space-y-2">
+                        <div className={`rounded-2xl p-4 ${msg.role === 'user' ? 'bg-cyber-purple/20 border border-cyber-purple/30 rounded-tr-none' : 'bg-cyber-card border border-white/10 rounded-tl-none'}`}>
+                          {msg.role === 'ai' ? (
+                            <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-black/50 prose-pre:border prose-pre:border-white/10">
+                              <ReactMarkdown>{displayText}</ReactMarkdown>
+                              {isStreaming && <span className="inline-block w-1.5 h-4 bg-cyber-blue ml-1 animate-pulse align-middle" />}
+                            </div>
+                          ) : (
+                            <p className="text-sm leading-relaxed">{msg.text}</p>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-sm leading-relaxed">{msg.text}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                        
+                        {/* Message Actions */}
+                        {!isStreaming && (
+                          <div className={`flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <button 
+                              onClick={() => copyToClipboard(msg.text)}
+                              className="p-1.5 text-white/30 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                              title="Copy message"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            {msg.role === 'ai' && (
+                              <button 
+                                onClick={() => {
+                                  const lastUserMsg = [...(activeSession?.messages || [])].reverse().find(m => m.role === 'user');
+                                  if (lastUserMsg) handleSendMessage(lastUserMsg.text);
+                                }}
+                                className="p-1.5 text-white/30 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                                title="Regenerate response"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
                 
                 {isTyping && (
-                  <div className="flex gap-3">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-3"
+                  >
                     <div className="w-8 h-8 rounded-full bg-cyber-blue/20 border border-cyber-blue/50 flex items-center justify-center shrink-0">
-                      <Bot className="w-4 h-4 text-cyber-blue" />
+                      <Logo size="sm" variant="ai" />
                     </div>
                     <div className="bg-cyber-card border border-white/10 rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
-                      <div className="w-2 h-2 bg-cyber-blue rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-cyber-blue rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                      <div className="w-2 h-2 bg-cyber-blue rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                      <div className="w-1.5 h-1.5 bg-cyber-blue rounded-full animate-bounce" />
+                      <div className="w-1.5 h-1.5 bg-cyber-blue rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <div className="w-1.5 h-1.5 bg-cyber-blue rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
                 <div ref={chatEndRef} />
               </div>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            <AnimatePresence>
+              {deletingSessionId && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setDeletingSessionId(null)}
+                    className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    className="relative w-full max-w-sm bg-cyber-bg border border-white/10 rounded-2xl p-6 shadow-2xl"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-cyber-red/20 flex items-center justify-center mb-4 mx-auto">
+                      <Trash2 className="w-6 h-6 text-cyber-red" />
+                    </div>
+                    <h3 className="text-xl font-bold text-center mb-2">Delete Chat?</h3>
+                    <p className="text-white/60 text-center text-sm mb-6">
+                      This action cannot be undone. All messages in this conversation will be permanently removed.
+                    </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setDeletingSessionId(null)}
+                        className="flex-1 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={confirmDelete}
+                        className="flex-1 py-3 rounded-xl bg-cyber-red text-white hover:bg-cyber-red/90 transition-colors font-medium"
+                      >
+                        Delete Chat
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             {/* Input Area */}
             <div className="p-4 border-t border-white/10 bg-cyber-card/50 backdrop-blur-md">
@@ -260,7 +495,7 @@ export function ChatPanel({ isOpen, onClose, userUid, chatSessions, onSessionUpd
                   rows={1}
                 />
                 <button 
-                  onClick={handleSendMessage}
+                  onClick={() => handleSendMessage()}
                   disabled={!input.trim() || isTyping}
                   className="p-3 bg-cyber-blue text-black rounded-xl hover:bg-cyber-blue/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 >

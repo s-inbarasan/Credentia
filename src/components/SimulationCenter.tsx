@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Shield, AlertTriangle, CheckCircle, XCircle, ArrowLeft, PlayCircle, ShieldAlert, Zap } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { SIMULATION_SCENARIOS } from '../data/simulations';

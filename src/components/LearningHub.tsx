@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { BookOpen, Shield, Lock, Key, Eye, AlertTriangle, Server, Globe, Database, Cpu, Wifi, CheckCircle, ArrowLeft, ChevronRight, PlayCircle } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { LEARNING_TOPICS } from '../data/learningTopics';

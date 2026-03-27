@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, ArrowLeft } from 'lucide-react';
+import { Logo } from './Logo';
 import { motion } from 'motion/react';
 import { supabase } from '../supabase';
 import { cn } from '../utils/cn';
@@ -130,7 +131,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
         </button>
 
         <div className="flex flex-col items-center mb-8 pt-4">
-          <Shield className="w-12 h-12 text-cyber-blue mb-4" />
+          <Logo size="lg" glow className="mb-4" />
           <h2 className="text-2xl font-bold">{isSignUp ? 'Create Account' : 'Welcome Back'}</h2>
           <p className="text-white/50 text-sm mt-2">
             {isSignUp ? 'Join the CREDENTIA platform' : 'Log in to continue your learning'}

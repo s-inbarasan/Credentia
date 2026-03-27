@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { User, Camera, Shield, ArrowRight, Loader2 } from 'lucide-react';
+import { Logo } from './Logo';
+import { User, Camera, ArrowRight, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { toast } from 'sonner';
 import { UserDocument } from '../types';
@@ -54,10 +55,10 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
     }, 30000); // Increased to 30s for mobile users
 
     try {
-      let finalImageUrl = '';
+      let finalImageUrl = profileImage || '';
 
-      // 1. Upload image to Supabase Storage if present
-      if (profileImage && fileInputRef.current?.files?.[0]) {
+      // 1. Upload image to Supabase Storage if present and it's a new file
+      if (fileInputRef.current?.files?.[0]) {
         console.log('Onboarding: Uploading profile image...');
         const file = fileInputRef.current.files[0];
         const fileExt = file.name.split('.').pop();
@@ -72,7 +73,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
           console.error('Onboarding: Image upload error:', uploadError);
           // Don't throw here, just log it. We can still create the profile without an image.
           toast.warning('Image Upload Failed', {
-            description: 'Your profile will be created without a custom image.'
+            description: 'Your profile will be created with the existing image if available.'
           });
         } else {
           const { data: { publicUrl } } = supabase.storage
@@ -190,13 +191,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
           className="z-10 text-center space-y-6"
         >
           <div className="w-24 h-24 bg-cyber-green/20 rounded-full flex items-center justify-center mx-auto border-2 border-cyber-green shadow-[0_0_30px_rgba(0,255,0,0.2)]">
-            <motion.div
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Shield className="w-12 h-12 text-cyber-green" />
-            </motion.div>
+            <Logo size="lg" className="text-cyber-green" />
           </div>
           <div className="space-y-2">
             <h2 className="text-3xl font-bold text-cyber-green">Access Granted</h2>
@@ -225,8 +220,8 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
         className="z-10 max-w-md w-full bg-cyber-card border border-white/10 p-8 rounded-3xl shadow-2xl space-y-8"
       >
         <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-cyber-blue/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyber-blue/20">
-            <Shield className="w-8 h-8 text-cyber-blue" />
+          <div className="mb-4 flex justify-center">
+            <Logo size="md" glow />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Agent Setup</h1>
           <p className="text-white/60">Complete your profile to enter CREDENTIA</p>

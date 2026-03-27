@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Logo } from './components/Logo';
 import { 
   Shield, 
   MessageSquare, 
@@ -342,6 +343,21 @@ export default function App() {
           } else if (existingProfile) {
             console.log('App: Profile found, skipping onboarding');
             setNeedsOnboarding(false);
+            
+            // Fix: Sync profile image from Google if missing in DB
+            if (!existingProfile.profile_image && supabaseUser.user_metadata?.avatar_url) {
+              console.log('App: Syncing profile image from Google metadata...');
+              try {
+                await supabase
+                  .from('profiles')
+                  .update({ profile_image: supabaseUser.user_metadata.avatar_url })
+                  .eq('id', supabaseUser.id);
+                existingProfile.profile_image = supabaseUser.user_metadata.avatar_url;
+              } catch (err) {
+                console.error('App: Error syncing profile image:', err);
+              }
+            }
+
             const mappedProfile: UserDocument = {
               uid: existingProfile.id,
               name: existingProfile.name,
@@ -417,7 +433,18 @@ export default function App() {
             }
 
             if (data) {
-              setChatSessions(data.map(s => ({
+              // Automatically delete empty chats (no user messages)
+              const emptySessions = data.filter(s => !s.messages.some((m: any) => m.role === 'user'));
+              if (emptySessions.length > 0) {
+                console.log('App: Cleaning up empty sessions:', emptySessions.length);
+                await supabase
+                  .from('chat_sessions')
+                  .delete()
+                  .in('id', emptySessions.map(s => s.id));
+              }
+
+              const validSessions = data.filter(s => s.messages.some((m: any) => m.role === 'user'));
+              setChatSessions(validSessions.map(s => ({
                 id: s.id,
                 title: s.title,
                 updatedAt: s.updated_at,
@@ -578,6 +605,7 @@ export default function App() {
   };
 
   const handleLogin = () => {
+    console.log('App: handleLogin called, setting showLogin to true');
     setShowLogin(true);
   };
 
@@ -785,8 +813,8 @@ export default function App() {
     console.log('App: Rendering loading state');
     return (
       <div className="min-h-screen bg-cyber-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Shield className="w-12 h-12 text-cyber-blue animate-pulse" />
+        <div className="flex flex-col items-center gap-6">
+          <Logo size="xl" glow />
           <div className="flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-cyber-blue animate-spin" />
             <span className="text-cyber-blue font-mono text-sm tracking-widest uppercase">Initializing Secure Session...</span>
@@ -811,10 +839,19 @@ export default function App() {
     );
   }
 
+  if (showLogin) {
+    return (
+      <Login 
+        onBack={() => setShowLogin(false)} 
+        onSuccess={() => {
+          setShowLogin(false);
+          setIsGuest(false);
+        }} 
+      />
+    );
+  }
+
   if (!user && !isGuest) {
-    if (showLogin) {
-      return <Login onBack={() => setShowLogin(false)} onSuccess={() => setShowLogin(false)} />;
-    }
     return <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />;
   }
 
@@ -931,45 +968,57 @@ export default function App() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="p-6 pt-10 border-b border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
+      <header className="p-4 pt-10 border-b border-white/10 bg-cyber-bg/80 backdrop-blur-md z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg overflow-hidden border border-cyber-blue/30 cyber-glow bg-black flex items-center justify-center">
-              <img src="/logo.png" alt="CREDENTIA Logo" className="w-full h-full object-cover" onError={(e) => {
-                // Fallback to shield icon if image not found
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement?.classList.add('bg-cyber-blue/10');
-                const shield = document.createElement('div');
-                shield.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyber-blue"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"></path></svg>';
-                e.currentTarget.parentElement?.appendChild(shield.firstChild as Node);
-              }} />
+            <div 
+              onClick={() => setIsEditingProfile(true)}
+              className="w-10 h-10 rounded-full overflow-hidden border border-cyber-blue/30 cyber-glow bg-black flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
+            >
+              {userDoc?.profileImage ? (
+                <img src={userDoc.profileImage} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-5 h-5 text-cyber-blue" />
+              )}
             </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">CREDENTIA</h1>
-              <p className="text-[10px] text-cyber-blue font-semibold uppercase tracking-[0.2em]">Cyber AI Mentor</p>
+            <div className="flex items-center gap-2">
+              <Logo size="sm" glow />
+              <div>
+                <h1 className="text-lg font-bold tracking-tight leading-none">
+                  {userDoc?.name || 'CREDENTIA'}
+                </h1>
+                <p className="text-[10px] text-cyber-blue font-semibold uppercase tracking-[0.2em] mt-1">
+                  Agent Level {userDoc?.level || 1}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowChatPanel(true)}
+              className="p-2 bg-cyber-blue/10 text-cyber-blue rounded-full hover:bg-cyber-blue/20 transition-colors relative"
+            >
+              <MessageSquare className="w-5 h-5" />
+              {chatSessions.length > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-cyber-red rounded-full border-2 border-cyber-bg" />
+              )}
+            </button>
             {user ? (
               <button 
                 onClick={() => setShowLogoutConfirm(true)}
-                className="p-2 rounded-full hover:bg-white/5 transition-colors group relative"
-                title="Logout"
+                className="p-2 text-white/40 hover:text-white transition-colors"
               >
-                <LogOut className="w-5 h-5 opacity-50 group-hover:opacity-100" />
+                <LogOut className="w-5 h-5" />
               </button>
             ) : (
               <button 
                 onClick={handleLogin}
-                className="p-2 rounded-full hover:bg-white/5 transition-colors group relative"
-                title="Login"
+                className="p-2 text-cyber-blue hover:text-white transition-colors"
+                title="Log In"
               >
-                <LogIn className="w-5 h-5 opacity-50 group-hover:opacity-100" />
+                <LogIn className="w-5 h-5" />
               </button>
             )}
-            <button className="p-2 rounded-full hover:bg-white/5 transition-colors">
-              <RefreshCw className="w-5 h-5 opacity-50" />
-            </button>
           </div>
         </div>
       </header>
@@ -1030,7 +1079,7 @@ export default function App() {
             {/* Security Score */}
             <section className="bg-cyber-card p-6 rounded-3xl border border-white/5 relative overflow-hidden flex items-center justify-between">
               <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Shield className="w-24 h-24" />
+                <Logo size="xl" className="opacity-20 grayscale" />
               </div>
               <div className="z-10">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-white/30 mb-2">Security Score</h3>
@@ -1417,9 +1466,9 @@ export default function App() {
       {/* Floating AI Mentor Button */}
       <button
         onClick={() => setShowChatPanel(true)}
-        className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue text-black rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30"
+        className="fixed bottom-20 right-4 w-14 h-14 bg-cyber-blue/20 border border-cyber-blue/50 rounded-full shadow-[0_0_20px_rgba(0,255,255,0.4)] flex items-center justify-center hover:scale-110 transition-transform z-30 overflow-hidden"
       >
-        <Bot className="w-6 h-6" />
+        <Logo size="sm" variant="ai" glow />
       </button>
 
       {/* Chat Panel Overlay */}
@@ -1431,9 +1480,34 @@ export default function App() {
             userUid={user?.uid}
             chatSessions={chatSessions}
             onSessionUpdate={async (session) => {
+              console.log('App: onSessionUpdate called for session:', session.id, 'Title:', session.title);
+              
+              // Optimistic update
+              setChatSessions(prev => {
+                const index = prev.findIndex(s => s.id === session.id);
+                if (index >= 0) {
+                  const updated = [...prev];
+                  updated[index] = session;
+                  const sorted = updated.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                  console.log('App: Updated existing session in state');
+                  return sorted;
+                }
+                console.log('App: Added new session to state');
+                return [session, ...prev];
+              });
+
               if (user) {
                 try {
-                  await supabase
+                  // ONLY SAVE IF THERE IS USER INTERACTION (at least one user message)
+                  const hasUserMessage = session.messages.some(m => m.role === 'user');
+                  
+                  if (!hasUserMessage) {
+                    console.log('App: Session is empty (no user messages), skipping database save');
+                    return;
+                  }
+
+                  console.log('App: Upserting session to Supabase...', session.id);
+                  const { error } = await supabase
                     .from('chat_sessions')
                     .upsert({
                       id: session.id,
@@ -1442,18 +1516,32 @@ export default function App() {
                       updated_at: session.updatedAt,
                       messages: session.messages
                     });
+                  
+                  if (error) {
+                    console.error('App: Supabase upsert error:', error);
+                    toast.error('Failed to save chat: ' + error.message);
+                  } else {
+                    console.log('App: Session upserted successfully');
+                  }
                 } catch (error) {
-                  console.error('Error updating chat session:', error);
+                  console.error('App: Error updating chat session:', error);
+                  toast.error('An unexpected error occurred while saving chat');
                 }
+              } else {
+                console.warn('App: No user found, session not saved to database');
               }
             }}
             onSessionDelete={async (sessionId) => {
+              // Optimistic update
+              setChatSessions(prev => prev.filter(s => s.id !== sessionId));
+
               if (user) {
                 try {
                   await supabase
                     .from('chat_sessions')
                     .delete()
-                    .eq('id', sessionId);
+                    .eq('id', sessionId)
+                    .eq('user_id', user.uid); // Ensure only user's own chats are deleted
                 } catch (error) {
                   console.error('Error deleting chat session:', error);
                 }

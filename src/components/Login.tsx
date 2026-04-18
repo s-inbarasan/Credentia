@@ -137,9 +137,7 @@ export function Login({ onBack, onSuccess }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
-      <ThreeBackground isWarping={isEntering} />
-
+    <div className="min-h-screen text-white flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
       <div className="w-full max-w-md z-10 overflow-y-auto max-h-[95vh] no-scrollbar py-4">
         <motion.div 
           variants={containerVariants}

@@ -41,3 +41,18 @@ body {
   display: none;
 }
 
+@keyframes cyber-pulse {
+  0%, 100% { text-shadow: 0 0 15px rgba(0, 242, 255, 0.6), 0 0 30px rgba(0, 242, 255, 0.3); }
+  50% { text-shadow: 0 0 30px rgba(0, 242, 255, 1), 0 0 60px rgba(0, 242, 255, 0.5); }
+}
+
+.text-glow {
+  animation: cyber-pulse 4s ease-in-out infinite;
+  color: white;
+}
+
+selection {
+  background: #00f2ff;
+  color: black;
+}
+

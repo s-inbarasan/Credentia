@@ -1029,92 +1029,98 @@ export default function App() {
 
   console.log('App: Rendering', { loading, hasUser: !!user, needsOnboarding, hasUserDoc: !!userDoc, isEnteringDashboard });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden">
-        <ThreeBackground isWarping={true} />
-        <div className="z-10 flex flex-col items-center gap-8">
-          <Logo size="lg" glow />
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ x: '-100%' }}
-                animate={{ x: '100%' }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                className="w-full h-full bg-cyber-blue shadow-[0_0_10px_rgba(0,242,255,0.8)]"
-              />
-            </div>
-            <span className="text-cyber-blue font-black text-[10px] tracking-[0.5em] uppercase animate-pulse">Establishing Secure Link...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <AnimatePresence mode="wait">
-      {isEnteringDashboard ? (
-        <motion.div 
-          key="entering"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden z-50"
-        >
-          <ThreeBackground isWarping={false} />
-          <Logo size="lg" glow />
-        </motion.div>
-      ) : user && needsOnboarding ? (
-        <motion.div 
-          key="onboarding"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Onboarding 
-            user={user} 
-            onComplete={(doc) => {
-              setUserDoc(doc);
-              setNeedsOnboarding(false);
-            }} 
-          />
-        </motion.div>
-      ) : showLogin ? (
-        <motion.div 
-          key="login"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Login 
-            onBack={() => setShowLogin(false)} 
-            onSuccess={() => {
-              setShowLogin(false);
-              setIsGuest(false);
-            }} 
-          />
-        </motion.div>
-      ) : !user && !isGuest ? (
-        <motion.div 
-          key="landing"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />
-        </motion.div>
-      ) : (
-        <motion.div 
-          key="dashboard"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-col h-screen w-full md:max-w-screen-2xl mx-auto bg-cyber-bg text-white overflow-hidden md:border-x border-white/10 shadow-2xl relative"
-        >
+    <div className="relative min-h-screen overflow-hidden font-sans selection:bg-cyber-blue selection:text-black">
+      {/* Global Background - Stays mounted for animation continuity */}
+      <ThreeBackground isWarping={isEnteringDashboard} />
+
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div 
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 flex items-center justify-center z-[100]"
+          >
+            <div className="flex flex-col items-center gap-8">
+              <Logo size="lg" glow />
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ x: '-100%' }}
+                    animate={{ x: '100%' }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    className="w-full h-full bg-cyber-blue shadow-[0_0_10px_rgba(0,242,255,0.8)]"
+                  />
+                </div>
+                <span className="text-cyber-blue font-black text-[10px] tracking-[0.5em] uppercase animate-pulse">Establishing Secure Link...</span>
+              </div>
+            </div>
+          </motion.div>
+        ) : isEnteringDashboard ? (
+          <motion.div 
+            key="entering"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 flex items-center justify-center z-[100]"
+          >
+            <Logo size="lg" glow />
+          </motion.div>
+        ) : user && needsOnboarding ? (
+          <motion.div 
+            key="onboarding"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="relative z-10"
+          >
+            <Onboarding 
+              user={user} 
+              onComplete={(doc) => {
+                setUserDoc(doc);
+                setNeedsOnboarding(false);
+              }} 
+            />
+          </motion.div>
+        ) : showLogin ? (
+          <motion.div 
+            key="login"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="relative z-10"
+          >
+            <Login 
+              onBack={() => setShowLogin(false)} 
+              onSuccess={() => {
+                setShowLogin(false);
+                setIsGuest(false);
+              }} 
+            />
+          </motion.div>
+        ) : !user && !isGuest ? (
+          <motion.div 
+            key="landing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative z-10"
+          >
+            <LandingPage onLogin={() => setShowLogin(true)} onGuest={() => setIsGuest(true)} />
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="dashboard"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col h-screen w-full md:max-w-screen-2xl mx-auto text-white overflow-hidden md:border-x border-white/10 shadow-2xl relative z-10"
+          >
+            {/* Background is now global, so we removed it from here */}
           {/* Badge Notification Overlay */}
           <AnimatePresence>
             {showBadgeNotification && (
@@ -2173,8 +2179,9 @@ export default function App() {
         )}
       </AnimatePresence>
       <Toaster position="top-center" richColors theme="dark" />
-    </motion.div>
-    )}
-    </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

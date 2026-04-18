@@ -46,7 +46,7 @@ export const ThreeBackground: React.FC<ThreeBackgroundProps> = ({
 
     // Particles setup
     const geometry = new THREE.BufferGeometry();
-    const particleCount = 800;
+    const particleCount = 1000;
     const positionsArray = new Float32Array(particleCount * 3);
     const velocitiesArray = new Float32Array(particleCount * 3);
     const sizesArray = new Float32Array(particleCount);
@@ -90,17 +90,17 @@ export const ThreeBackground: React.FC<ThreeBackgroundProps> = ({
 
     let time = 0;
     const animate = () => {
-      time += 0.001;
+      time += 0.002;
       const positionsAttr = geometry.attributes.position as THREE.BufferAttribute;
 
       if (!isWarpingRef.current) {
         // Slow rotation for soothing effect
-        particles.rotation.y += 0.0005;
-        particles.rotation.x += 0.0002;
+        particles.rotation.y += 0.001;
+        particles.rotation.x += 0.0005;
         
         // Subtle camera drift
-        camera.position.x = Math.sin(time * 0.5) * 50;
-        camera.position.y = Math.cos(time * 0.3) * 50;
+        camera.position.x = Math.sin(time * 0.4) * 80;
+        camera.position.y = Math.cos(time * 0.2) * 80;
         camera.lookAt(0, 0, 0);
       }
 
@@ -160,7 +160,7 @@ export const ThreeBackground: React.FC<ThreeBackgroundProps> = ({
   return (
     <div 
       ref={containerRef} 
-      className="fixed inset-0 pointer-events-none z-0 bg-black"
+      className="fixed inset-0 pointer-events-none z-[-1] bg-black"
       style={{ background: 'radial-gradient(circle at center, #001a1a 0%, #000000 100%)' }}
     />
   );

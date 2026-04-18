@@ -241,8 +241,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <ThreeBackground isWarping={true} />
+      <div className="min-h-screen text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <motion.div 
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -265,9 +264,7 @@ export function Onboarding({ user, onComplete }: OnboardingProps) {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
-      <ThreeBackground />
-
+    <div className="min-h-screen text-white flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
       <div className="w-full max-w-xl z-10 overflow-y-auto max-h-[90vh] no-scrollbar py-4">
         <AnimatePresence mode="wait">
           {step === 1 ? (

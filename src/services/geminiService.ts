@@ -1,14 +1,27 @@
 /// <reference types="vite/client" />
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize the GoogleGenAI client with the API key from environment variables.
-// The gemini-api skill mandates using process.env.GEMINI_API_KEY for React (Vite).
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let _ai: GoogleGenAI | null = null;
+
+const getAI = (): GoogleGenAI | null => {
+  if (_ai) return _ai;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY is not set. AI features are disabled.');
+    return null;
+  }
+  _ai = new GoogleGenAI({ apiKey });
+  return _ai;
+};
 
 export const getCyberResponse = async (prompt: string, history: { role: 'user' | 'model', parts: { text: string }[] }[]) => {
+  const ai = getAI();
+  if (!ai) {
+    return "The AI Mentor is currently unavailable. Please ensure the GEMINI_API_KEY is configured in your Vercel environment variables.";
+  }
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.0-flash",
       contents: history.concat([{ role: 'user', parts: [{ text: prompt }] }]),
       config: {
         systemInstruction: "You are CREDENTIA Cyber AI Mentor, a professional cybersecurity assistant. Provide simple yet technical explanations about password safety, phishing, data privacy, and cyber attacks. Always structure your answers with Headings, Bullet points, Step-by-step explanations, and Practical examples. Always include a disclaimer that this is for educational purposes only. Keep responses concise, professional, and helpful.",

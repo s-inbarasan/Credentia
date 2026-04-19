@@ -55,9 +55,9 @@ export function LandingPage({ onLogin, onGuest }: LandingPageProps) {
       color: 'bg-cyber-green'
     },
     { 
-      title: 'Smart AI Helper', 
-      desc: 'Our AI finds safety gaps and tells you exactly how to fix them.', 
-      icon: <Bot className="w-6 h-6 text-cyber-purple" />,
+      title: 'Phishing Detector', 
+      desc: 'Paste any suspicious link or message and scan it for phishing and social engineering patterns.',
+      icon: <AlertOctagon className="w-6 h-6 text-cyber-purple" />,
       color: 'bg-cyber-purple'
     },
     { 
